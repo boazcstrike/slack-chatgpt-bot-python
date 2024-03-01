@@ -9,6 +9,7 @@ from urllib.request import urlopen
 from slack_bolt import App
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from utils.core import get_env, log, validate_input
 from utils.home import build_app_home_blocks
@@ -231,7 +232,11 @@ class SlackBot():
     self.register_listeners()
 
   def start_bot(self):
-    print(f'\n\n\033[1mStarted Slackbot Version 0.1.0b\033[0m\n\n')
+    try:
+      print(f'\n\n\033[1mStarted Slackbot Version 0.1.0b\033[0m\n\n')
+      SocketModeHandler(self.app, self.token).start()
+    except KeyboardInterrupt:
+      log('Stopping server')
     self.app.start()
 
   def send_message(self, channel, message, blocks=None, thread_ts=None, reply_broadcast=None):
@@ -337,8 +342,6 @@ class SlackBot():
       logger.error(f"Error publishing home tab: {e}")
 
   def register_listeners(self):
-    """! does not work"""
-    print('registering listeners...')
     @self.app.event("app_mention")
     def handle_app_mentions(body, say, payload):
       try:
