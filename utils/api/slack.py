@@ -368,9 +368,9 @@ class SlackBot():
     message, parent_message_text, thread_ts=None):
     self.send_message(
       channel=channel,
-      message=f"Ok, :saluting_face: generating image for your request..."
+      message=random.choice(self.busy_messages) + f" generating image for your request {prompt[12:]}, please wait for me :blobcatroll:"
     )
-    prompt = self._clean_image_prompt_message(message, parent_message_text)
+    prompt = self._clean_image_prompt_message(message)
 
     if parent_message_text:
       prompt = f'{parent_message_text}. {prompt}'
@@ -383,7 +383,6 @@ class SlackBot():
         message='Please check your input. To generate image use this format -> @tagme! image: robot walking a dog')
 
     oa = OpenAIAPI()
-
     image_url = oa.generate_image(
       prompt=prompt,
       size="1024x1024",
@@ -393,7 +392,7 @@ class SlackBot():
     try:
       image_content = urlopen(image_url).read()
 
-      short_prompt = prompt[:50]
+      short_prompt = prompt[50:]
       image_name = f"{short_prompt.replace(' ', '_')}.png"
       image_path = f'./tmp/{image_name}'
 
@@ -411,7 +410,7 @@ class SlackBot():
 
       self.send_message(
         channel=channel,
-        message=upload_response['file']['url_private'])
+        message=f'File url in case you need it! :blob_excited: {upload_response['file']['url_private']}')
     except SlackApiError as e:
       msg = f'Slack API error: {e}'
       log(msg, error=True)
@@ -447,7 +446,8 @@ class SlackBot():
     messages.extend(existing_messages)
 
     with open(file_path, 'w') as file:
-      file.write(json.dumps(messages) + '\n')
+      for msg in messages:
+        file.write(json.dumps(msg) + '\n')
 
     return messages
 
@@ -475,7 +475,6 @@ class SlackBot():
     oa = OpenAIAPI()
     now = datetime.now()
 
-    print('messages', messages)
     try:
       response = oa.create_completion(messages=messages)
     except Exception as e:
@@ -483,11 +482,11 @@ class SlackBot():
       self.send_message(channel=channel, thread_ts=thread_ts, message=str(e))
       return
 
-    text = response.choices[0].message.content.strip('\n')
+    gpt_resp = response.choices[0].message.content.strip('\n')
 
     messages.append({'role': 'user', 'content': message, 'created_at': now, 'thread_ts': thread_ts})
     messages.append(
-      {'role': 'assistant', 'content': text, 'created_at': now, 'thread_ts': thread_ts})
+      {'role': 'assistant', 'content': gpt_resp, 'created_at': now, 'thread_ts': thread_ts})
 
     # todo: handle size so we can save some storage space and reset the contexts
     # self.handle_size(x, messages, thread_ts)
@@ -497,6 +496,6 @@ class SlackBot():
     else:
       target_channel = channel
 
-    self.send_message(channel=target_channel, thread_ts=thread_ts, message=message, reply_broadcast=in_thread)
+    self.send_message(channel=target_channel, thread_ts=thread_ts, message=gpt_resp, reply_broadcast=in_thread)
 
-    log(f'ChatGPT response: {message}')
+    log(f'ChatGPT response: {gpt_resp}')
