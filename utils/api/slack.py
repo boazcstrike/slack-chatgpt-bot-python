@@ -215,8 +215,9 @@ class SlackBot():
   def __init__(self):
     print('starting slack bot connection...')
     load_dotenv()
-    self.token = os.getenv('SLACK_BOT_USER_OAUTH_TOKEN', None)
-    self.signing_secret = os.getenv('SLACK_BOT_SIGNING_SECRET', None)
+    self.token = os.getenv('SLACK_BOT_USER_OAUTH_TOKEN')
+    self.signing_secret = os.getenv('SLACK_BOT_SIGNING_SECRET')
+    self.app_token = os.getenv('SLACK_BOT_APP_LEVEL_TOKEN')
     self.client = WebClient(self.token)
     self.bot_id = self.client.auth_test().data['user_id']
     self.bot_name = self.client.auth_test().data['user']
@@ -224,6 +225,10 @@ class SlackBot():
     self.dm_channel_ids = {}
     self.last_request_datetime = {}
     self.busy_messages = bot_busy_messages
+    self.settings = {
+      "history_expires_seconds": get_env('HISTORY_EXPIRES_IN', '900'),
+      "history_size": get_env('HISTORY_SIZE', '10'),
+    }
 
     self.app = App(
       token=self.token,
@@ -234,7 +239,7 @@ class SlackBot():
   def start_bot(self):
     try:
       print(f'\n\n\033[1mStarted Slackbot Version 0.1.0b\033[0m\n\n')
-      SocketModeHandler(self.app, self.token).start()
+      SocketModeHandler(self.app, self.app_token).start()
     except KeyboardInterrupt:
       log('Stopping server')
     self.app.start()
@@ -362,7 +367,7 @@ class SlackBot():
     if channel not in self.last_request_datetime:
       self.last_request_datetime[channel] = datetime.fromtimestamp(0)
     # Let the user know that we are busy with the request if enough time has passed since last message
-    if self.last_request_datetime[channel] + timedelta(seconds=self.history_expires_seconds) < datetime.now():
+    if self.last_request_datetime[channel] + timedelta(seconds=int(self.settings['history_expires_seconds'])) < datetime.now():
       self.client.chat_postMessage(
         channel=channel,
         thread_ts=thread_ts,
@@ -503,9 +508,9 @@ class SlackBot():
 
     return messages
 
-  def handle_size(self, history_size, messages, thread_ts=None):
+  def handle_size(self, messages, thread_ts=None): #! unused
     """Remove the oldest 2 history message if the channel history size is exceeded for the current threa"""
-    if len(list(filter(lambda x: x['thread_ts'] == thread_ts, messages))) >= (history_size + 1) * 2:
+    if len(list(filter(lambda x: x['thread_ts'] == thread_ts, messages))) >= (int(self.settings['history_size']) + 1) * 2:
       # Create iterator for chat history list
       chat_history_list = (msg for msg in messages if msg['thread_ts'] == thread_ts)
       first_occurance = next(chat_history_list, None)
