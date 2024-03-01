@@ -17,6 +17,7 @@ from slack_sdk.errors import SlackApiError
 
 from home import build_app_home_blocks
 from utils.core import robot_working_messages
+import os
 
 dm_channel_ids = {}
 
@@ -55,13 +56,13 @@ def generate_image(
 	return image_url
 
 
-def valid_input(value: Optional[str]) -> bool:
+def validate_input_none_or_empty(value: Optional[str]) -> bool:
 	return value is not None and value.strip() != ''
 
 
 def get_env(key: str, default: Optional[str]) -> str:
 	value = os.getenv(key, default)
-	if not valid_input(value):
+	if not validate_input_none_or_empty(value):
 		value = default
 	return value
 
@@ -293,43 +294,49 @@ def handle_prompt(prompt, user, channel, thread_ts=None, direct_message=False, i
 			image_path = None
 
 			try:
-			   image_content = urlopen(image_url).read()
+				image_content = urlopen(image_url).read()
 
-			   # Prepare image name and path.
-			   short_prompt = base_image_prompt if valid_input(base_image_prompt) else image_prompt[:30].strip()
-			   image_name = f"{short_prompt.replace(' ', '_')}.png"
-			   image_path = f'./tmp/{image_name}'
+				short_prompt = base_image_prompt[:30] if validate_input_none_or_empty(base_image_prompt) else image_prompt[:30].strip(',/_')
+				image_name = f"{short_prompt.replace(' ', '_')}.png"
+				image_path = f'./tmp/{image_name}'
 
-			   # Write file in temp directory
-			   image_file = open(image_path, 'wb')
-			   image_file.write(image_content)
-			   image_file.close()
+				image_file = open(image_path, 'wb')
+				image_file.write(image_content)
+				image_file.close()
 
-			   # Upload image to Slack and send message with image to channel so you have it neatly named with your prompt and saved permanently
-			   upload_response = slack_client.files_upload_v2(
-				   channel=dm_channel_ids.get(user, user),
-				   thread_ts=thread_ts,
-				   title=short_prompt,
-				   filename=image_name,
-				   file=image_path
-			   )
+				upload_response = slack_client.files_upload_v2(
+					channel=dm_channel_ids.get(user, user),
+					thread_ts=thread_ts,
+					title=base_image_prompt,
+					filename=image_name,
+					file=image_path
+				)
 
-			   # Set text variable for logging purposes only
-			   text = upload_response['file']['url_private']
+				text = upload_response['file']['url_private']
 			except SlackApiError as e:
-			   text = None
-			   log(f'Slack API error: {e}', error=True)
+				text = None
+				log(f'Slack API error: {e}', error=True)
 
 			# uncomment to save storage space
 		  # Remove temp image
 			# if image_path and os.path.exists(image_path):
 			#    os.remove(image_path)
 
-
 	# Generate chat response
 	else:
 		now = datetime.now()
-		history_messages = []
+		# Create the file path
+		file_path = './tmp/history_messages_day.txt'
+
+		# Read the array of questions from the file
+		if os.path.exists(file_path):
+			with open(file_path, 'r') as file:
+				history_messages = file.readlines()
+		else:
+			history_messages = []
+
+		# Remove newline characters from each question
+		history_messages = [question.strip() for question in history_messages]
 		if channel in chat_history:
 			for channel_message in chat_history[channel]:
 				if channel_message['created_at'] + timedelta(seconds=history_expires_seconds) < now or \
