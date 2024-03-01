@@ -344,6 +344,17 @@ class SlackBot():
         prompt,
         parent_message_text,
         thread_ts,
+        'dall-e-2',
+      )
+
+    elif prompt.lower().startswith('imagehd: '):
+      self.handle_image_generation_prompt(
+        channel,
+        user,
+        prompt,
+        parent_message_text,
+        thread_ts,
+        'dall-e-3',
       )
 
     else:
@@ -365,7 +376,7 @@ class SlackBot():
 
   def handle_image_generation_prompt(
     self, channel, user,
-    message, parent_message_text, thread_ts=None):
+    message, parent_message_text, thread_ts=None, model='dall-e-2'):
     self.send_message(
       channel=channel,
       message=random.choice(self.busy_messages) + f" generating image for your request {prompt[12:]}, please wait for me :blobcatroll:"
@@ -383,9 +394,16 @@ class SlackBot():
         message='Please check your input. To generate image use this format -> @tagme! image: robot walking a dog')
 
     oa = OpenAIAPI()
+
+    if model == 'dall-e-3':
+      size = "1024x1024"
+    elif model == 'dall-e-2':
+      size = "512x512"
+
     image_url = oa.generate_image(
       prompt=prompt,
-      size="1024x1024",
+      size=size,
+      model=model,
       slack=self)
     image_path = None
 
@@ -410,7 +428,7 @@ class SlackBot():
 
       self.send_message(
         channel=channel,
-        message=f'File url in case you need it! :blob_excited: {upload_response['file']['url_private']}')
+        message=f"File url in case you need it! :blob_excited: {upload_response['file']['url_private']}")
     except SlackApiError as e:
       msg = f'Slack API error: {e}'
       log(msg, error=True)
