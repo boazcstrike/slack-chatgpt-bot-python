@@ -1,3 +1,5 @@
+import datetime
+
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -10,6 +12,9 @@ class OpenAIAPI():
 
   Examples:
   https://cookbook.openai.com/examples/how_to_format_inputs_to_chatgpt_models
+
+  Model endpoints
+  https://platform.openai.com/docs/models/model-endpoint-compatibility
   """
   def __init__(self):
     load_dotenv()
@@ -98,3 +103,20 @@ class OpenAIAPI():
         slack.chat(text=str(e))
       return
     return image_url
+
+
+
+  def generate_tts(self, prompt, user, thread_ts=None):
+    current_datetime = datetime.datetime.now()
+    formatted_datetime = current_datetime.strftime("%m-%d-%y-%H-%M-") + str(current_datetime.second)
+    file_name = f"{formatted_datetime}-tts.mp3"
+    speech_file_path = f"./tmp/"+file_name
+    response = self.client.audio.speech.create(
+        model="tts-1",
+        voice="alloy",
+        input=prompt
+    )
+    with open(speech_file_path, 'wb') as f:
+        response.stream_to_file(speech_file_path)
+
+    return speech_file_path, file_name

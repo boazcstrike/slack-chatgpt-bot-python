@@ -230,6 +230,7 @@ class SlackBot():
       "history_expires_seconds": get_env('HISTORY_EXPIRES_IN', '900'),
       "history_size": get_env('HISTORY_SIZE', '10'),
     }
+    self.image_base_url = './tmp/'
 
     self.app = App(
       token=self.token,
@@ -357,6 +358,14 @@ class SlackBot():
         'dall-e-3',
       )
 
+    elif prompt.lower().startswith('tts: '):
+      self.handle_tts_prompt(
+        channel,
+        user,
+        prompt,
+        thread_ts
+      )
+
     else:
       self.handle_chat_prompt(
         channel,
@@ -377,7 +386,6 @@ class SlackBot():
   def handle_image_generation_prompt(
     self, channel, user,
     message, parent_message_text, thread_ts=None, model='dall-e-2'):
-
     prompt = self._clean_image_prompt_message(message)
     self.send_message(
       channel=channel,
@@ -413,7 +421,7 @@ class SlackBot():
 
       short_prompt = prompt[50:]
       image_name = f"{short_prompt.replace(' ', '_')}.png"
-      image_path = f'./tmp/{image_name}'
+      image_path = f'{self.image_base_url}{image_name}'
 
       image_file = open(image_path, 'wb')
       image_file.write(image_content)
@@ -518,3 +526,29 @@ class SlackBot():
     self.send_message(channel=target_channel, thread_ts=thread_ts, message=gpt_resp, reply_broadcast=in_thread)
 
     log(f'ChatGPT response: {gpt_resp}')
+
+  def _clean_tts_prompt_message(self, prompt_message):
+    """
+    Cleans the image prompt message by removing the image: prefix and any leading/trailing whitespace.
+    """
+    return prompt_message[3:].strip(',/_')
+
+  def handle_tts_prompt(self, channel, user, message, thread_ts=None):
+    current_datetime = datetime.now()
+    prompt = self._clean_tts_prompt_message(message)
+    log(f'Attempting to generate text-to-speech for "{prompt[:16]}..." at {current_datetime}')
+
+    oa = OpenAIAPI()
+    file_path, file_name = oa.generate_tts(prompt, user, thread_ts)
+
+    try:
+      _ = self.client.files_upload_v2(
+        channel=self.dm_channel_ids.get(user, user),
+        thread_ts=thread_ts,
+        file=file_path,
+        filename=file_name,
+        title=prompt[:55],
+      )
+      print("Audio sent successfully to Slack!")
+    except SlackApiError as e:
+      print(f"Error sending audio to Slack: {e.response['error']}")
