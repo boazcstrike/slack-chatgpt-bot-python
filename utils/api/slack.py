@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import re
@@ -248,9 +249,6 @@ class SlackBot():
     post_message = {
       "channel": channel,
       "text": message,
-      "blocks": blocks,
-      "thread_ts": thread_ts,
-      "reply_broadcast": reply_broadcast,
     }
 
     if blocks:
@@ -259,66 +257,10 @@ class SlackBot():
       post_message.update({"thread_ts": thread_ts})
     if reply_broadcast:
       post_message.update({"reply_broadcast": reply_broadcast})
-
-    self.client.chat_postMessage(post_message)
-
-  def send_message_with_attachment(self, channel, message, attachment):
-    self.client.chat_postMessage(
-      channel=channel,
-      text=message,
-      attachments=attachment
-    )
-
-  def send_ephemeral_message(self, channel, user, message, blocks=None):
-      if blocks:
-          self.client.chat_postEphemeral(
-              channel=channel,
-              user=user,
-              text=message,
-              blocks=blocks
-          )
-      else:
-          self.client.chat_postEphemeral(
-              channel=channel,
-              user=user,
-              text=message
-          )
-
-  def send_ephemeral_message_with_attachment(self, channel, user, message, attachment):
-      self.client.chat_postEphemeral(
-          channel=channel,
-          user=user,
-          text=message,
-          attachments=attachment
-      )
-
-  def send_ephemeral_message_with_blocks(self, channel, user, blocks):
-      self.client.chat_postEphemeral(
-          channel=channel,
-          user=user,
-          blocks=blocks
-      )
-
-  def send_attachment(self, channel, attachment):
-      self.client.chat_postMessage(
-          channel=channel,
-          attachments=attachment
-      )
-
-  def send_attachment_with_blocks(self, channel, message, attachment, blocks):
-      self.client.chat_postMessage(
-          channel=channel,
-          text=message,
-          attachments=attachment,
-          blocks=blocks
-      )
-
-  def send_attachment_with_ephemeral(self, channel, user, attachment):
-      self.client.chat_postEphemeral(
-          channel=channel,
-          user=user,
-          attachments=attachment
-      )
+    try:
+      self.client.chat_postMessage(**post_message)
+    except SlackApiError as e:
+      log(f"Error sending message: {e.response['error']}")
 
   def update_app_home(self, body, logger):
     user_id = body["event"]["user"]
@@ -363,15 +305,19 @@ class SlackBot():
     def handle_reaction_added_events(body, logger):
       print('someone reacted')
 
+    @self.app.event("message")
+    def handle_message_events(body, logger):
+      print('someone sent a message')
+
   def handle_msg(self, message, user, channel, thread_ts=None, direct_message=False, in_thread=False):
     if channel not in self.last_request_datetime:
       self.last_request_datetime[channel] = datetime.fromtimestamp(0)
     # Let the user know that we are busy with the request if enough time has passed since last message
     if self.last_request_datetime[channel] + timedelta(seconds=int(self.settings['history_expires_seconds'])) < datetime.now():
-      self.client.chat_postMessage(
+      self.send_message(
         channel=channel,
         thread_ts=thread_ts,
-        text=random.choice(self.busy_messages))
+        message=random.choice(self.busy_messages))
 
     self.last_request_datetime[channel] = datetime.now()
 
@@ -383,19 +329,19 @@ class SlackBot():
       if len(conversation['messages']) > 0 and validate_input(conversation['messages'][0]['text']):
         parent_message_text = conversation['messages'][0]['text']
 
-    prompt = re.sub(r'<[^>]*>', '', prompt, count=1)
-    prompt = prompt.split('@', 1)[0].strip()
+    message = re.sub(r'<[^>]*>', '', message, count=1)
+    prompt = message.split('@', 1)[0].strip()
 
     if len(prompt.strip()) == 0 and parent_message_text is None:
       return
     if not prompt:
       raise ValueError("Prompt cannot be empty")
 
-    if message.lower().startswith('image: '):
+    if prompt.lower().startswith('image: '):
       self.handle_image_generation_prompt(
         channel,
         user,
-        message,
+        prompt,
         parent_message_text,
         thread_ts,
       )
@@ -404,7 +350,7 @@ class SlackBot():
       self.handle_chat_prompt(
         channel,
         user,
-        message,
+        prompt,
         parent_message_text,
         thread_ts,
         direct_message,
@@ -483,13 +429,10 @@ class SlackBot():
     file_path = f'./tmp/{channel}.txt'
 
     if os.path.exists(file_path):
-      with open(file_path, 'r') as file:
-        existing_messages = file.read().strip().split('\n')
+        with open(file_path, 'r') as file:
+            existing_messages = [json.loads(line) for line in file]
     else:
-      existing_messages = []
-
-    for msg in existing_messages:
-      existing_messages.append({'role': msg['role'], 'content': msg['content']})
+        existing_messages = []
 
     log(f'Using {len(existing_messages)} messages from chat history')
 
@@ -498,13 +441,13 @@ class SlackBot():
       log(f'Adding parent message from thread with timestamp: {thread_ts}')
 
     messages = [
-      *existing_messages,
-      {'role': 'user', 'content': message}
+      {'role': 'user', 'content': message},
+      {'role': 'system', 'content': 'You are a helpful assistant'}
     ]
-    messages.insert(0, {'role': 'system', 'content': 'You are a helpful assistant.'})
+    messages.extend(existing_messages)
 
     with open(file_path, 'w') as file:
-      file.write('\n'.join(messages))
+      file.write(json.dumps(messages) + '\n')
 
     return messages
 
@@ -531,11 +474,13 @@ class SlackBot():
 
     oa = OpenAIAPI()
     now = datetime.now()
+
+    print('messages', messages)
     try:
-      response = oa.chat.completions.create(messages=messages)
+      response = oa.create_completion(messages=messages)
     except Exception as e:
       log(f'ChatGPT response error: {e}', error=True)
-      self.send_message(channel=channel, thread_ts=thread_ts, text=str(e))
+      self.send_message(channel=channel, thread_ts=thread_ts, message=str(e))
       return
 
     text = response.choices[0].message.content.strip('\n')
@@ -552,6 +497,6 @@ class SlackBot():
     else:
       target_channel = channel
 
-    self.send_message(channel=target_channel, thread_ts=thread_ts, text=text, reply_broadcast=in_thread)
+    self.send_message(channel=target_channel, thread_ts=thread_ts, message=message, reply_broadcast=in_thread)
 
-    log(f'ChatGPT response: {text}')
+    log(f'ChatGPT response: {message}')

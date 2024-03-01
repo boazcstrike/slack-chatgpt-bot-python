@@ -11,11 +11,11 @@ class OpenAIAPI():
   Examples:
   https://cookbook.openai.com/examples/how_to_format_inputs_to_chatgpt_models
   """
-  def __init__(self, token):
+  def __init__(self):
     load_dotenv()
-    self.token = token
+    self.token = get_env('OPENAI_API_KEY', None)
     self.client = OpenAI(
-      api_key = get_env('OPENAI_API_KEY', None),
+      api_key = self.token,
     )
     self.gptmodel = get_env('GPT_MODEL', 'gpt-4')
     self.system_desc = get_env('GPT_SYSTEM_DESC', 'Helpful AI assistant.')
@@ -40,11 +40,13 @@ class OpenAIAPI():
        "history_size": get_env('HISTORY_SIZE', '10'),
     }
 
-  def create_completion(self, prompt, max_tokens=None, temperature=1, top_p=1.0, n=1, stop=None, timeout=None, presence_penalty=0, frequency_penalty=0, best_of=1, stream=False, logprobs=None, logit_bias=None):
+  def create_completion(self, messages, max_tokens=None, temperature=1, top_p=1.0, n=1, stop=None, timeout=None, presence_penalty=0, frequency_penalty=0, best_of=1, stream=False, logprobs=None, logit_bias=None):
     """
     https://platform.openai.com/docs/api-reference/chat/create
     """
+    print('create_completion messages', messages)
     response = self.client.chat.completions.create(
+      messages=messages,
       model=self.gptmodel,
       frequency_penalty=frequency_penalty,
       logit_bias=logit_bias,
@@ -54,11 +56,8 @@ class OpenAIAPI():
       presence_penalty=presence_penalty,
       stop=stop,
       stream=stream,
-      prompt=prompt,
       temperature=temperature,
       top_p=top_p,
-      timeout=timeout,
-      best_of=best_of,
     )
     return response
 
