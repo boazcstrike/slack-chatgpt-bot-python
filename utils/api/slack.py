@@ -377,11 +377,12 @@ class SlackBot():
   def handle_image_generation_prompt(
     self, channel, user,
     message, parent_message_text, thread_ts=None, model='dall-e-2'):
+
+    prompt = self._clean_image_prompt_message(message)
     self.send_message(
       channel=channel,
-      message=random.choice(self.busy_messages) + f" generating image for your request {prompt[12:]}, please wait for me :blobcatroll:"
+      message=random.choice(self.busy_messages) + f" generating image for your request {prompt[:16]}, please wait for me :blobcatroll:"
     )
-    prompt = self._clean_image_prompt_message(message)
 
     if parent_message_text:
       prompt = f'{parent_message_text}. {prompt}'
