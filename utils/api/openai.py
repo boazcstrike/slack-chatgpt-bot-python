@@ -87,16 +87,16 @@ class OpenAIAPI():
   def generate_image(
       self,
       prompt,
-      size,
+      size="1024x1024",
       quality="standard",
-      model="dall-e-3",
+      model="dall-e-2",
       slack=None):
     """
     generates an image from a prompt using the DALL-E API.
 
     full doc: https://platform.openai.com/docs/api-reference/images/create
     """
-    log(f'Attempting to generate "{prompt}" at {quality} {size}')
+    log(f'Attempting to generate "{prompt}" at {quality} {size} using {model}')
     self.validate_image_size(size, model)
 
     try:
@@ -111,10 +111,28 @@ class OpenAIAPI():
     except Exception as e:
       log(f'ChatGPT response error: {e}', error=True)
       if slack:
-        slack.chat(text=str(e))
+        slack.send_message(message=str(e))
       return
     return image_url
 
+  def generate_image_variation(self, image, size="1024x1024", quality="standard", model="dall-e-2", slack=None):
+    """generates image variations from a prompt and reference image using the DALL-E API."""
+    log(f'Attempting to generate a variation at {quality} {size} using {model}')
+    self.validate_image_size(size, model)
+
+    try:
+      response = self.client.images.create_variation(
+        image=open(image, "rb"),
+        n=2,
+        size=size,
+      )
+      image_url = response.data[0].url
+    except Exception as e:
+      log(f'ChatGPT response error: {e}', error=True)
+      if slack:
+        slack.send_message(message=str(e))
+      return
+    return image_url
 
 
   def generate_tts(self, prompt, user, thread_ts=None):
