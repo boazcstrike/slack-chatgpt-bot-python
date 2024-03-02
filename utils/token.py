@@ -35,7 +35,7 @@ class TokenCount():
             print(f"token bytes: {token_bytes}")
 
     @staticmethod
-    def num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613"):
+    def num_tokens_from_messages(messages, model="gpt-3.5-turbo"):
         """Return the number of tokens used by a list of messages."""
         try:
             encoding = tiktoken.encoding_for_model(model)
@@ -57,10 +57,10 @@ class TokenCount():
             tokens_per_name = -1  # if there's a name, the role is omitted
         elif "gpt-3.5-turbo" in model:
             print("Warning: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613.")
-            return num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613")
+            return TokenCount.num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613")
         elif "gpt-4" in model:
             print("Warning: gpt-4 may update over time. Returning num tokens assuming gpt-4-0613.")
-            return num_tokens_from_messages(messages, model="gpt-4-0613")
+            return TokenCount.num_tokens_from_messages(messages, model="gpt-4-0613")
         else:
             raise NotImplementedError(
                 f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens."""
