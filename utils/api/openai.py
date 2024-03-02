@@ -13,8 +13,9 @@ class OpenAIAPI():
   Examples:
   https://cookbook.openai.com/examples/how_to_format_inputs_to_chatgpt_models
 
-  Model endpoints
-  https://platform.openai.com/docs/models/model-endpoint-compatibility
+  GPT Models:
+  https://platform.openai.com/docs/models
+  https://platform.openai.com/docs/guides/text-generation
   """
   def __init__(self):
     load_dotenv()
@@ -22,7 +23,6 @@ class OpenAIAPI():
     self.client = OpenAI(
       api_key = self.token,
     )
-    self.gptmodel = get_env('GPT_MODEL', 'gpt-4')
     self.system_desc = get_env('GPT_SYSTEM_DESC', 'Helpful AI assistant.')
     self.file_path = './tmp/prompts_history.txt'
 
@@ -45,14 +45,25 @@ class OpenAIAPI():
        "history_size": get_env('HISTORY_SIZE', '10'),
     }
 
-  def create_completion(self, messages, max_tokens=None, temperature=1, top_p=1.0, n=1, stop=None, timeout=None, presence_penalty=0, frequency_penalty=0, best_of=1, stream=False, logprobs=None, logit_bias=None):
+  def create_completion(self, messages, max_tokens=None, temperature=1, top_p=1.0, n=1, stop=None, presence_penalty=0, frequency_penalty=0, stream=False, logprobs=None, logit_bias=None, model='gpt-3.5-turbo'):
     """
     https://platform.openai.com/docs/api-reference/chat/create
+    https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
+    https://platform.openai.com/docs/models/gpt-3-5-turbo
+
+    recommended models (i strongly recommend reading the official doc^ and browsing through the models)
+    gpt-4, gpt-4-turbo-preview, gpt-3.5-turbo
+
+    gpt-3.5-turbo-0125
+    gpt-4-1106-preview
+    gpt-4-vision-preview
+
+    legacy models:
+    gpt-3.5-turbo-instruct
     """
-    print('create_completion messages', messages)
     response = self.client.chat.completions.create(
       messages=messages,
-      model=self.gptmodel,
+      model=model,
       frequency_penalty=frequency_penalty,
       logit_bias=logit_bias,
       logprobs=logprobs,

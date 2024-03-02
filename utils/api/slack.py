@@ -494,7 +494,6 @@ class SlackBot():
       if second_occurance:
         messages.remove(second_occurance)
 
-
   def handle_chat_prompt(
     self, channel, user, message, parent_message_text, thread_ts=None, direct_message=False, in_thread=False):
     messages = self._save_chat_history(channel, message, parent_message_text, thread_ts)

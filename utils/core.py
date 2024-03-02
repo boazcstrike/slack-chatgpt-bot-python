@@ -1,7 +1,7 @@
-from typing import Optional
 import os
 import sys
-from datetime import datetime, timedelta
+from typing import Optional
+from datetime import datetime
 
 
 def get_env(key: str, default: Optional[str]) -> str:
@@ -17,5 +17,4 @@ def log(content: str, error: bool = False):
 def validate_input(value: Optional[str]) -> bool:
 	"""checks if the input is valid (not None and not empty)"""
 	return value is not None and value.strip() != ''
-
 
