@@ -10,12 +10,17 @@ from urllib.request import urlopen
 from slack_bolt import App
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+from slack_sdk.socket_mode.response import SocketModeResponse
+from slack_sdk.socket_mode.request import SocketModeRequest
+
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from utils.core import get_env, log, validate_input
 from utils.home import build_app_home_blocks
 from utils.api.openai import OpenAIAPI
 from utils.messages.main import bot_busy_messages
+
+
 
 
 class SlackBot():
@@ -232,8 +237,8 @@ class SlackBot():
         """image generation prompts goes here"""
         prompt = self._clean_image_prompt_message(message, model)
         self.send_message(
-        channel=channel,
-        message=random.choice(self.busy_messages) + f" generating image for your request '{prompt[:24]}'..., please wait for me! :blobcatroll:"
+            channel=channel,
+            message=random.choice(self.busy_messages) + f" generating image for your request '{prompt[:24]}'..., please wait for me! :blobcatroll:"
         )
 
         if parent_message_text:
@@ -249,9 +254,9 @@ class SlackBot():
         oa = OpenAIAPI()
 
         image_url = oa.generate_image(
-        prompt=prompt,
-        model=model,
-        slack=self)
+            prompt=prompt,
+            model=model,
+            slack=self)
         image_path = None
 
         try:
@@ -357,7 +362,7 @@ class SlackBot():
 
         messages = [
             {'role': 'user', 'content': message},
-            {'role': 'system', 'content': 'You are a helpful assistant'}
+            {'role': 'system', 'content': 'You are a funny helpful assistant'}
         ]
         messages.extend(existing_messages)
 
@@ -367,34 +372,20 @@ class SlackBot():
 
         return messages
 
-    def handle_size(self, messages, thread_ts=None): #! unused
-        """Remove the oldest 2 history message if the channel history size is exceeded for the current threa"""
-        if len(list(filter(lambda x: x['thread_ts'] == thread_ts, messages))) >= (int(self.settings['history_size']) + 1) * 2:
-        # Create iterator for chat history list
-            chat_history_list = (msg for msg in messages if msg['thread_ts'] == thread_ts)
-            first_occurance = next(chat_history_list, None)
-            second_occurance = next(chat_history_list, None)
-        else:
-            first_occurance = None
-            second_occurance = None
-
-        # Remove first occurance
-        if first_occurance:
-            messages.remove(first_occurance)
-
-        # Remove second occurance
-        if second_occurance:
-            messages.remove(second_occurance)
-
     def handle_chat_prompt(
         self, channel, user, message, parent_message_text, thread_ts=None, direct_message=False, in_thread=False):
         """basic chat completion goes here"""
-        messages = self._save_chat_history(channel, message, parent_message_text, thread_ts)
+        # messages = self._save_chat_history(channel, message, parent_message_text, thread_ts)
+        messages = [
+            {'role': 'user', 'content': message},
+            {'role': 'system', 'content': 'You are a funny and helpful assistant'}
+        ]
 
         oa = OpenAIAPI()
         now = datetime.now()
 
         try:
+            # response = oa.create_completion(messages=messages)
             response = oa.create_completion(messages=messages)
         except Exception as e:
             log(f'ChatGPT response error: {e}', error=True)
@@ -403,9 +394,8 @@ class SlackBot():
 
         gpt_resp = response.choices[0].message.content.strip('\n')
 
-        messages.append({'role': 'user', 'content': message, 'created_at': now, 'thread_ts': thread_ts})
-        messages.append(
-        {'role': 'assistant', 'content': gpt_resp, 'created_at': now, 'thread_ts': thread_ts})
+        # messages.append({'role': 'user', 'content': message, 'created_at': now, 'thread_ts': thread_ts})
+        # messages.append({'role': 'assistant', 'content': gpt_resp, 'created_at': now, 'thread_ts': thread_ts})
 
         # todo: handle size so we can save some storage space and reset the contexts
         # self.handle_size(x, messages, thread_ts)
@@ -445,3 +435,404 @@ class SlackBot():
             print("Audio sent successfully to Slack!")
         except SlackApiError as e:
             print(f"Error sending audio to Slack: {e.response['error']}")
+
+    @staticmethod
+    def parse_rich_text_to_plain_text(rich_text):
+        """parse rich text to plain text"""
+        result_text = ""
+        # go over all elements
+        for s in rich_text["elements"]:
+            if s["type"] == "rich_text_section":
+                for e in s["elements"]:
+                    if e["type"] == "text":
+                        result_text = result_text + e["text"]
+
+        return result_text
+
+    @staticmethod
+    def sanitize_prompt(prompt):
+        """remove unwanted characters from prompt"""
+        allowed = string.ascii_letters + '"!()[];:-.,/_ ' + string.digits
+        prompt = prompt.replace('\n'," ").replace('\t', " ")
+        prompt = ''.join(filter(lambda x: x in allowed, prompt.encode('ASCII', "ignore").decode('ASCII')))
+
+        forbidden_strings = [" -o", " --out"]
+        for p in forbidden_strings:
+            if p in prompt:
+                return ""
+
+        return prompt.strip()
+
+    @staticmethod
+    def parse_prompt_text_from_event(event):
+        """remove the rich text formatting from the prompt"""
+        text = ""
+        blocks = event["blocks"]
+        for b in blocks:
+            if b["type"] == "plain_text":
+                text = text + b["type"]["text"]
+            elif b["type"] == "rich_text":
+                text = text + parse_rich_text_to_plain_text(b)
+
+        return sanitize_prompt(text)
+
+    def parse_non_threadded_message(self, event, userid):
+        """parse non-threaded message"""
+        msg_ts = event["ts"]
+        thread_ts = event["ts"]
+        if "thread_ts" in event:
+            thread_ts = event["thread_ts"]
+        in_thread = msg_ts != thread_ts
+        channel_id = event["channel"]
+
+        logger.debug("parse event: " + repr(event))
+        prompt = parse_prompt_text_from_event(event)
+        logger.debug(f" process parsed and sanitize prompt: {prompt}")
+
+        if len(prompt) < 3:
+            client.web_client.reactions_add(name="rage", channel=channel_id, timestamp=thread_ts)
+            blocks = list()
+            blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"*Error prompt too short (min. 3 chars required)*"}})
+            blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"*Prompt:* {prompt}"}})
+            client.web_client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, blocks=blocks)
+            return
+
+        msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts, "userid" : userid }
+        message_queue.put(json.dumps(msg))
+
+    def parse_mention(self, payload):
+        """parse mention"""
+        event = payload["event"]
+        userid = event["user"]
+        msg_ts = event["ts"]
+        thread_ts = event.get("thread_ts", event.get("ts"))
+        in_thread = msg_ts != thread_ts
+
+        channel_id = event["channel"]
+
+        client.web_client.reactions_add(name="eyes", channel=event["channel"], timestamp=event["ts"])
+
+        if not in_thread:
+            parse_non_threadded_message(client, event, userid)
+
+    @staticmethod
+    def split_blocks(long_string, prefix="", postfix=""):
+        """split the blocks"""
+        lines = long_string.splitlines()
+        blocks = list()
+        collect = ""
+        while len(lines) > 0:
+            collect = collect + lines.pop(0) + "\n"
+            if len(collect) > 2500:
+                stdout_str = f"{prefix}{collect}{postfix}"
+                blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : stdout_str}})
+                collect = ""
+
+        if len(collect) > 0:
+            stdout_str = f"{prefix}{collect}{postfix}"
+            blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : stdout_str}})
+
+        return blocks
+
+    def remove_args(args, args_to_remove):
+        # e.g. args_to_remove = ["n", "U"]
+        olist = args.split("-")
+
+        new_args = []
+        for o in olist:
+            ok = True
+            for p in args_to_remove:
+                if o.startswith(p):
+                    ok = False
+                if ok:
+                    n = o
+                if len(o) > 0 and not o.endswith(' '):
+                    n = n + " "
+
+            new_args.append(n)
+
+        return new_args
+
+    def process(self, req: SocketModeRequest):
+        logger.debug("Request type: {req.type}")
+
+        if req.type == "interactive":
+            response = SocketModeResponse(envelope_id=req.envelope_id)
+            client.send_socket_mode_response(response)
+            payload = req.payload
+            userid = payload["user"]["id"]
+
+            actions = payload["actions"]
+            task = actions[0]["action_id"]
+            value_str = actions[0]["value"]
+            base = json.loads(value_str)
+            channel_id = payload["channel"]["id"]
+            message = payload["message"]
+            thread_ts = message.get("thread_ts", message.get("ts"))
+
+        if task.startswith("similar"):
+            logger.debug("Variations based on: {base}")
+            args = base["args"]
+            new_args = remove_args(args, ["v", "n"])
+            v = task[7:]
+        if len(v.strip()) == 0:
+            v = ".1"
+            new_args.append(f"v{v}")
+
+            prompt = base["prompt"] + " " + "-".join(new_args);
+            msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts }
+            msg["userid"] = userid
+            message_queue.put(json.dumps(msg))
+        elif task == "upscale2":
+            logger.debug("Upscale based on: {base}")
+            args = base["args"]
+            new_args = remove_args(args, ["n", "U"])
+            new_args.append("U 2")
+            prompt = base["prompt"] + " " + "-".join(new_args);
+            msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts, "in_thread" : True}
+            msg["userid"] = userid
+            message_queue.put(json.dumps(msg))
+        elif task == "embiggen":
+            logger.debug("Embiggen based on: {base}")
+            image = os.path.basename(base["image"])
+            prompt = f"!fix {image} --embiggen 2"
+            msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts, "in_thread" : True}
+            msg["userid"] = userid
+            message_queue.put(json.dumps(msg))
+        elif task.startswith("redo"):
+            v = task[4:]
+            try:
+                v = int(v.strip())
+            except:
+                v = 1
+
+            logger.debug("Redo based on: {base}")
+            args = base["args"]
+            new_args = remove_args(args, ["n", "U", "S", "v", "V"])
+            prompt = base["prompt"] + " " + "-".join(new_args);
+            msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts}
+            msg["userid"] = userid
+            for x in range(v):
+                message_queue.put(json.dumps(msg))
+
+        if req.type == "events_api":
+            # Acknowledge the request anyway
+            response = SocketModeResponse(envelope_id=req.envelope_id)
+            client.send_socket_mode_response(response)
+
+            if req.payload["event"]["type"] == "app_mention":
+                parse_mention(client, req.payload)
+
+
+    def process_slack_reply(client: SocketModeClient, message, raw_message):
+        if "prompt" not in message:
+            return
+
+        if "state" in message and message["state"] == "running":
+            ts = message["ts"]
+            channel = message["channel"]
+            client.web_client.reactions_add(
+                name="lower_left_paintbrush",
+                channel=channel,
+                timestamp=ts,
+            )
+            return
+
+        # state is "done"/"idle"
+        # completed painting
+
+        prompt = message["prompt"]
+        args = message["args"]
+        ts = message["ts"]
+        channel = message["channel"]
+        full_output = message["stdout"]
+        in_thread = message.get("in_thread", False)
+        userid = message.get("userid", "")
+
+        # if there is no image in message, paining failed
+        if "image" not in message:
+            try:
+                client.web_client.reactions_add(
+                    name="boom",
+                    channel=channel,
+                    timestamp=ts,
+                )
+            except SlackApiError as e:
+                print("error caught:", e)
+
+            blocks = []
+            if len(full_output) > 0:
+                blocks = split_blocks(full_output, "```", "```")
+            else:
+                if "stderr" in message and len(message["stderr"]) > 0:
+                    blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"```" + message["stderr"] + "```"}})
+                else:
+                    blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"```Unknown error occured```"}})
+
+            client.web_client.chat_postMessage(
+                channel=channel,
+                thread_ts=ts,
+                blocks=blocks,
+            )
+            return
+
+        imagefile = message["image"]
+
+        conversation = client.web_client.conversations_open(users=userid)
+        #{'ok': True, 'no_op': True, 'already_open': True, 'channel': {'id': 'D041BKAKSF9'}}
+
+        dm_id = None
+        if conversation["ok"]:
+            dm_id = conversation["channel"]["id"]
+
+        publish_to = [channel]
+        if dm_id is not None:
+            publish_to.append(dm_id)
+
+        if not in_thread:
+            # most cases reply in channel
+            result = client.web_client.files_upload(
+                channels=publish_to,
+                file=imagefile,
+                title=f"{prompt} {args}",
+            )
+        else:
+            # upscale replies go to the thread
+            result = client.web_client.files_upload(
+                channels=publish_to,
+                file=imagefile,
+                title=f"{prompt} {args} by <@{userid}>",
+                thread_ts=ts,
+            )
+
+        new_file = result['file']
+
+    def do_shares(share_items):
+        for chan, share in share_items.items():
+            if chan == dm_id:
+                continue
+
+        for s in share:
+            ts = ""
+            if "ts" in s:
+                ts = s["ts"]
+            if "thread_ts" in s:
+                ts = s["thread_ts"]
+
+            client.web_client.chat_postMessage(
+                channel=chan,
+                thread_ts=ts,
+                text=f"{prompt} {args}",
+            )
+
+            #blocks = list()
+            #blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"This work was comissioned by <@{userid}>"}})
+            #client.web_client.chat_postMessage(
+            #    channel=chan,
+            #    thread_ts=ts,
+            #    blocks=blocks,
+            #)
+
+            blocks = list()
+            blocks.append({ "type" : "header", "text" : { "type" : "plain_text", "text" : "Create more based on this prompt" }})
+            action_value = {"prompt" : prompt, "args" : args, "image" : imagefile}
+            action_value_str = json.dumps(action_value)
+            buttons = list()
+            buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Very Similar" }, "action_id" : "similar.05", "value" : action_value_str})
+            buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Similar" }, "action_id" : "similar.1", "value" : action_value_str})
+            buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Somewhat Similar" }, "action_id" : "similar.25", "value" : action_value_str})
+            blocks.append({ "type" : "actions", "elements" : buttons })
+            buttons = list()
+            buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Redo" }, "action_id" : "redo", "value" : action_value_str})
+            buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Redo 5x" }, "action_id" : "redo5", "value" : action_value_str})
+            blocks.append({ "type" : "actions", "elements" : buttons })
+            buttons = list()
+            buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "Upscale 2x" }, "action_id" : "upscale2", "value" : action_value_str})
+            buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "SD 2x" }, "action_id" : "embiggen", "value" : action_value_str})
+            blocks.append({ "type" : "actions", "elements" : buttons })
+
+            client.web_client.chat_postMessage(
+                channel=chan,
+                thread_ts=ts,
+                blocks=blocks,
+            )
+
+            if len(full_output) > 0:
+                blocks = list()
+                blocks = split_blocks(full_output, "```", "```")
+                client.web_client.chat_postMessage(
+                    channel=chan,
+                    thread_ts=ts,
+                    blocks=blocks,
+                )
+
+        if "private" in new_file["shares"]:
+            do_shares(new_file["shares"]["private"])
+
+        if "public" in new_file["shares"]:
+            do_shares(new_file["shares"]["public"])
+
+
+        # Add a new listener to receive messages from Slack
+        # You can add more listeners like this
+        client.socket_mode_request_listeners.append(process)
+        client.message_listeners.append(process_slack_reply)
+
+        # Establish a WebSocket connection to the Socket Mode servers
+        client.connect()
+
+    def sanitize_output(output):
+        """remove all paths except for the last part"""
+        result = []
+        # remove all paths exept for the last part
+        for l in output.splitlines():
+            clean_line = []
+            for part in l.split(" "):
+                if len(part) > 0 and part[-1] == ":" and os.path.exists(part[:-1]):
+                    clean_line.append(os.path.basename(part[:-1]) + ":")
+                else:
+                    clean_line.append(part)
+            result.append(" ".join(clean_line))
+
+        return "\n".join(result)
+
+    def parse_output(out, clean_out):
+        """parse the output"""
+        m = re.search(r'Outputs:\n(.*)goodbye!', out, re.DOTALL)
+        if m is None:
+            return []
+
+        resultstr = m.group(1)
+        result = []
+
+        for l in resultstr.splitlines():
+            if len(l.strip()) < 4:
+                continue
+            m = re.search(r'^\[[\d\.]+\] (.*): (.*)(".*") (.*)$', l)
+            if m is not None:
+                img, bang_cmd, prompt, args = m.groups()
+            if len(bang_cmd.strip()) > 0:
+                prompt = bang_cmd.strip() + " " + prompt
+            result.append({"image" : img, "prompt" : prompt, "args" : args, "stdout" : clean_out })
+
+        return result
+
+
+    def handle_size(self, messages, thread_ts=None): #! unused
+        """Remove the oldest 2 history message if the channel history size is exceeded for the current threa"""
+        if len(list(filter(lambda x: x['thread_ts'] == thread_ts, messages))) >= (int(self.settings['history_size']) + 1) * 2:
+        # Create iterator for chat history list
+            chat_history_list = (msg for msg in messages if msg['thread_ts'] == thread_ts)
+            first_occurance = next(chat_history_list, None)
+            second_occurance = next(chat_history_list, None)
+        else:
+            first_occurance = None
+            second_occurance = None
+
+        # Remove first occurance
+        if first_occurance:
+            messages.remove(first_occurance)
+
+        # Remove second occurance
+        if second_occurance:
+            messages.remove(second_occurance)
