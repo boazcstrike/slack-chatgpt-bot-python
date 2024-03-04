@@ -2,7 +2,9 @@ import json
 import os
 import random
 import re
+from unidecode import unidecode
 
+import jieba
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from urllib.request import urlopen
@@ -19,8 +21,6 @@ from utils.core import get_env, log, validate_input
 from utils.home import build_app_home_blocks
 from utils.api.openai import OpenAIAPI
 from utils.messages.main import bot_busy_messages
-
-
 
 
 class SlackBot():
@@ -54,20 +54,20 @@ class SlackBot():
 
     def start_bot(self) -> None:
         """starts the slack bot and listens for incoming messages."""
-        self.set_status(
+        self._set_status(
             status_text='Ask me anything in #api-dump', status_emoji=':loading_apple:')
         print(f'\n\033[1mStarting Slackbot Version 0.2.1b\033[0m\nby \033[1mBoaz Sze @ {datetime.now().year}\033[0m\n')
         try:
             SocketModeHandler(self.app, self.app_token).start()
         except KeyboardInterrupt:
             log('Stopping server... please wait...')
-        self.set_status(status_text='I am offline.', status_emoji=':zzz:')
+        self._set_status(status_text='I am offline.', status_emoji=':zzz:')
 
     def get_dm_channel_ids(self):
         """plan to use .json or .txt file so all the channel ids would be saved here"""
         pass
 
-    def set_status(self, status_text='', status_emoji=':blush:') -> None:
+    def _set_status(self, status_text='', status_emoji=':blush:') -> None:
         """
         https://api.slack.com/methods/users.profile.set
         updates the bot's status
@@ -79,7 +79,7 @@ class SlackBot():
         except SlackApiError as e:
             log(f"Error updating status: {e.response['error']}")
 
-    def send_message(self, channel, message, blocks=None, thread_ts=None, reply_broadcast=None) -> None:
+    def _send_message(self, channel, message, blocks=None, thread_ts=None, reply_broadcast=None) -> None:
         """sends a message to a slack channel."""
         post_message = {
             "channel": channel,
@@ -126,7 +126,6 @@ class SlackBot():
     def register_listeners(self):
         @self.app.event("app_mention")
         def handle_app_mentions(body, say, payload):
-            print(body)
             try:
                 message = str(body['event']['text']).strip()
                 channel = body['event']['channel']
@@ -155,7 +154,7 @@ class SlackBot():
             self.last_request_datetime[channel] = datetime.fromtimestamp(0)
         # Let the user know that we are busy with the request if enough time has passed since last message
         if self.last_request_datetime[channel] + timedelta(seconds=int(self.settings['history_expires_seconds'])) < datetime.now():
-            self.send_message(
+            self._send_message(
                 channel=channel,
                 thread_ts=thread_ts,
                 message=random.choice(self.busy_messages))
@@ -214,6 +213,12 @@ class SlackBot():
                 thread_ts
             )
 
+        elif prompt.lower().startswith('reset'):
+            self.handle_reset_message(
+                user,
+                channel,
+            )
+
         else:
             self.handle_chat_prompt(
                 channel,
@@ -224,6 +229,26 @@ class SlackBot():
                 direct_message,
                 in_thread
             )
+
+    def handle_reset_message(self, user, channel):
+        file_path = f'./tmp/{channel}_{datetime.now().strftime("%m-%d-%Y")}.txt'
+        renamed_path = f'./tmp/{channel}_{datetime.now().strftime("%m-%d-%Y")}_{datetime.now().strftime("%S")}.txt'
+
+        if os.path.exists(file_path):
+            try:
+                os.rename(file_path, renamed_path)
+            except Exception as e:
+                log(f'Error renaming file: {e}', error=True)
+                self._send_message(
+                    channel=self.dm_channel_ids.get(user, user),
+                    message="I've encountered an error while trying to reset our chat history. :sob:"
+                )
+                return
+
+        self._send_message(
+            channel=self.dm_channel_ids.get(user, user),
+            message=" I'm ready to start fresh! :white_check_mark: Please remember that from this point I won't be able to remember what you said before."
+        )
 
     def _clean_image_prompt_message(self, message, model):
         """
@@ -240,9 +265,9 @@ class SlackBot():
         message, parent_message_text, thread_ts=None, model='dall-e-2'):
         """image generation prompts goes here"""
         prompt = self._clean_image_prompt_message(message, model)
-        self.send_message(
+        self._send_message(
             channel=channel,
-            message=random.choice(self.busy_messages) + f" generating image for your request '{prompt[:24]}'..., please wait for me! :blobcatroll:"
+            message=random.choice(self.busy_messages) + f"\nGenerating image for your request '{prompt[:24]}'..., please wait for me! :blobcatroll:"
         )
 
         if parent_message_text:
@@ -251,7 +276,7 @@ class SlackBot():
 
         # validate prompt
         if len(prompt) == 0:
-            return self.send_message(
+            return self._send_message(
                 channel=channel,
                 message='Please check your input. To generate image use this format -> @tagme! image: robot walking a dog')
 
@@ -282,13 +307,13 @@ class SlackBot():
                 file=image_path,
             )
 
-            self.send_message(
+            self._send_message(
                 channel=channel,
                 message=f"File url in case you need it! :blob_excited: {upload_response['file']['url_private']}")
         except SlackApiError as e:
             msg = f'Slack API error: {e}'
             log(msg, error=True)
-            self.send_message(
+            self._send_message(
                 channel=channel,
                 message=msg)
 
@@ -302,7 +327,7 @@ class SlackBot():
         pass
         # if not "attachments" in message:
         #   msg = 'No attachments found in message'
-        #   self.send_message(channel=channel, thread_ts=thread_ts, message=msg + ' :sob: Please send an image together with the prompt.', reply_broadcast=thread_ts)
+        #   self._send_message(channel=channel, thread_ts=thread_ts, message=msg + ' :sob: Please send an image together with the prompt.', reply_broadcast=thread_ts)
         #   return log(msg)
 
         # attachments = message["attachments"]
@@ -312,12 +337,12 @@ class SlackBot():
         #     image_url = attachment["image_url"]
         #     response = self.client.files_download(url=image_url)
         #     if not response.status_code == 200:
-        #       self.send_message(channel=channel, thread_ts=thread_ts, message='Something went wrong downloading the image. :sob:', reply_broadcast=thread_ts)
+        #       self._send_message(channel=channel, thread_ts=thread_ts, message='Something went wrong downloading the image. :sob:', reply_broadcast=thread_ts)
         #       return log("Failed to download image")
 
         #   else:
         #     msg = 'Attached file is not an image.'
-        #     self.send_message(channel=channel, thread_ts=thread_ts, message=msg + ' :sob:', reply_broadcast=thread_ts)
+        #     self._send_message(channel=channel, thread_ts=thread_ts, message=msg + ' :sob:', reply_broadcast=thread_ts)
         #     return log(msg)
 
         # image_name = os.path.basename(image_url)
@@ -345,50 +370,96 @@ class SlackBot():
         #   size="1024x1024"
         # )
 
-        # self.send_message(channel=channel, thread_ts=thread_ts, message=response_message)
+        # self._send_message(channel=channel, thread_ts=thread_ts, message=response_message)
         # log(f'Response sent to user {user}: {response_message}')
+
+    def craft_gpt_usage_summary(self, res):
+        """craft the gpt usage summary"""
+        log(f'Model: {res.model}')
+        log(f'Prompt tokens: {res.usage.prompt_tokens}')
+        log(f'Completion tokens: {res.usage.completion_tokens}')
+        log(f'Total used tokens: {res.usage.total_tokens}')
+
+        return f"Model: {res.model}\n" \
+               f"Prompt tokens: {res.usage.prompt_tokens}\n" \
+               f"Completion tokens: {res.usage.completion_tokens}\n" \
+               f"Total used tokens: {res.usage.total_tokens}"
 
     @staticmethod
     def save_user_chat_history(channel, message, parent_message_text=None, thread_ts=None):
-        """this is for context windowing, to keep track of the last few messages in a channel for the chatbot to use as context."""
-        file_path = f'./tmp/{channel}.txt'
+        """this is for context windowing, to keep track of the last few messages in a channel for the chatbot to use as context.
+
+        in the future might migrate this to utils/api/openai.py
+        """
+        file_path = f'./tmp/{channel}_{datetime.now().strftime("%m-%d-%Y")}.txt'
 
         if os.path.exists(file_path):
             with open(file_path, 'r') as file:
                 existing_messages = [json.loads(line) for line in file]
         else:
             existing_messages = []
-
         log(f'Using {len(existing_messages)} messages from chat history')
 
+        system_message = {'role': 'system', 'content': 'You are a helpful corporate assistant.'}
+        if system_message not in existing_messages:
+            existing_messages.append(system_message)
+            log('added new system message for assistant')
+
+        # check thread and add thread message to the history
         if parent_message_text:
             existing_messages.append({'role': 'user', 'content': parent_message_text})
-            log(f'Adding parent message from thread with timestamp: {thread_ts}')
-        else:
-            log(f'No parent message found in thread; saving user message: {message[:16]}... to file...')
 
-        messages = [
-            {'role': 'user', 'content': message},
-            {'role': 'system', 'content': 'You are a helpful corporate assistant'}
-        ]
-        messages.extend(existing_messages)
+        user_message = {'role': 'user', 'content': message}
+        existing_messages.append(user_message)
 
         with open(file_path, 'w') as file:
-            for msg in messages:
-                file.write(json.dumps(msg) + '\n')
-                print('written to textfile')
-                print(json.dumps(msg) + '\n')
+            for message in existing_messages:
+                file.write(json.dumps(message) + '\n')
+        log('user msg written to textfile')
 
-        return messages
+        return existing_messages
 
     @staticmethod
     def save_assistant_chat_history(channel, message, messages, thread_ts=None):
         """saves the gpt response to the chat history"""
-        messages.append({'role': 'user', 'content': message, 'created_at': now, 'thread_ts': thread_ts})
-        messages.append({'role': 'assistant', 'content': message, 'created_at': now, 'thread_ts': thread_ts})
+        file_path = f'./tmp/{channel}_{datetime.now().strftime("%m-%d-%Y")}.txt'
 
-        log(f'Saving assistant message: {message[:16]}... to file...')
-        return messages
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as file:
+                existing_messages = [json.loads(line) for line in file]
+        else:
+            existing_messages = []
+        log(f'Using {len(existing_messages)} messages from chat history')
+        existing_messages.append({'role': 'assistant', 'content': message})
+        with open(file_path, 'w') as file:
+            for message in existing_messages:
+                file.write(json.dumps(message) + '\n')
+        log('assistant msg written to textfile')
+
+        return existing_messages
+
+    @staticmethod
+    def clean_gpt_message(text):
+        cleaned_message = text.replace("\\", "")
+
+        # weird unicode to ascii
+        cleaned_message = unidecode(cleaned_message)
+        cleaned_message = cleaned_message.strip('\n*')
+
+        # for chinese text using jieba
+        # only trigger when there are chinese characters in the message
+        if any('\u4e00' <= char <= '\u9fff' for char in cleaned_message):
+            chinese_tokens = jieba.lcut_for_search(cleaned_message)
+            cleaned_message = ' '.join(chinese_tokens)
+
+            # remove extra spaces becaues for some reason the jieba.lcut_for_search() function tokenizes the text by adding spaces between words
+            cleaned_message = re.sub(r'\s+', ' ', cleaned_message)
+            cleaned_message = re.sub(r'\s+(?=[,:;])', '', cleaned_message)
+            cleaned_message = re.sub(r'\s*([.,:;!?])\s*', r'\1 ', cleaned_message)
+            cleaned_message = re.sub(r'\s*-\s*', '- ', cleaned_message)
+            cleaned_message = re.sub(r'\s*#+\s*', ' ', cleaned_message)
+
+        return cleaned_message
 
     def handle_chat_prompt(
         self, channel, user, message, parent_message_text, thread_ts=None, direct_message=False, in_thread=False):
@@ -396,18 +467,17 @@ class SlackBot():
         messages = self.save_user_chat_history(channel, message, parent_message_text, thread_ts)
 
         oa = OpenAIAPI()
-        now = datetime.now()
 
         try:
             response = oa.create_completion(messages=messages)
         except Exception as e:
             log(f'ChatGPT response error: {e}', error=True)
-            self.send_message(channel=channel, thread_ts=thread_ts, message=str(e))
+            self._send_message(channel=channel, thread_ts=thread_ts, message=str(e))
             return
 
-        gpt_resp = response.choices[0].message.content.strip('\n')
-
-        messages = save_assistant_chat_history(channel, gpt_resp, messages, thread_ts)
+        gpt_message = response.choices[0].message.content
+        gpt_message = SlackBot.clean_gpt_message(gpt_message)
+        messages = self.save_assistant_chat_history(channel, gpt_message, messages, thread_ts)
 
         # todo: handle size so we can save some storage space and reset the contexts
         # self.handle_size(x, messages, thread_ts)
@@ -417,9 +487,11 @@ class SlackBot():
         else:
             target_channel = channel
 
-        self.send_message(channel=target_channel, thread_ts=thread_ts, message=gpt_resp, reply_broadcast=in_thread)
+        summary_message = self.craft_gpt_usage_summary(response)
+        self._send_message(channel=channel, thread_ts=thread_ts, message=summary_message)
+        self._send_message(channel=target_channel, thread_ts=thread_ts, message=gpt_message, reply_broadcast=in_thread)
 
-        log(f'ChatGPT response: {gpt_resp}')
+        log(f'ChatGPT response: {gpt_message}')
 
     def _clean_tts_prompt_message(self, prompt_message):
         """

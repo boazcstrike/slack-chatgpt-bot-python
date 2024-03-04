@@ -47,7 +47,7 @@ class OpenAIAPI():
             "history_size": get_env('HISTORY_SIZE', '10'),
         }
 
-    def create_completion(self, messages, max_tokens=None, temperature=1, top_p=1.0, n=1, stop=None, presence_penalty=0, frequency_penalty=0, stream=False, logprobs=None, logit_bias=None, model='gpt-3.5-turbo'):
+    def create_completion(self, messages, max_tokens=None, temperature=1, top_p=1.0, n=1, stop=None, presence_penalty=0, frequency_penalty=0, stream=False, logprobs=None, logit_bias=None, model='gpt-4-turbo-preview'):
         """
         https://platform.openai.com/docs/api-reference/chat/create
         https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
