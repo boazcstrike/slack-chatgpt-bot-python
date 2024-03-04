@@ -36,12 +36,13 @@ class SlackBot():
         self.bot_name = self.client.auth_test().data['user']
 
         self.bot_channel = 'ai-dump'
+        # self.dm_channel_ids = self.get_dm_channel_ids()
         self.dm_channel_ids = {}
         self.last_request_datetime = {}
         self.busy_messages = bot_busy_messages
         self.settings = {
-        "history_expires_seconds": get_env('HISTORY_EXPIRES_IN', '900'),
-        "history_size": get_env('HISTORY_SIZE', '10'),
+            "history_expires_seconds": get_env('HISTORY_EXPIRES_IN', '900'),
+            "history_size": get_env('HISTORY_SIZE', '10'),
         }
         self.image_base_url = './tmp/'
 
@@ -50,7 +51,6 @@ class SlackBot():
             signing_secret=self.signing_secret,
         )
         self.register_listeners()
-
 
     def start_bot(self) -> None:
         """starts the slack bot and listens for incoming messages."""
@@ -62,6 +62,10 @@ class SlackBot():
         except KeyboardInterrupt:
             log('Stopping server... please wait...')
         self.set_status(status_text='I am offline.', status_emoji=':zzz:')
+
+    def get_dm_channel_ids(self):
+        """plan to use .json or .txt file so all the channel ids would be saved here"""
+        pass
 
     def set_status(self, status_text='', status_emoji=':blush:') -> None:
         """
@@ -78,8 +82,8 @@ class SlackBot():
     def send_message(self, channel, message, blocks=None, thread_ts=None, reply_broadcast=None) -> None:
         """sends a message to a slack channel."""
         post_message = {
-        "channel": channel,
-        "text": message,
+            "channel": channel,
+            "text": message,
         }
 
         if blocks:
@@ -98,22 +102,22 @@ class SlackBot():
         blocks = build_app_home_blocks()
         try:
             self.client.views_publish(
-            user_id=user_id,
-            view={
-            "type": "home",
-            "blocks": blocks
-            }
-        )
+                user_id=user_id,
+                view={
+                    "type": "home",
+                    "blocks": blocks
+                }
+            )
         except SlackApiError as e:
             logger.error(f"Error publishing App Home: {e}")
 
     def update_home_tab(self, event, logger):
         try:
             self.client.views_publish(
-            user_id=event["user"],
-            view={
-            "type": "home",
-            "blocks": build_app_home_blocks(),
+                user_id=event["user"],
+                view={
+                    "type": "home",
+                    "blocks": build_app_home_blocks(),
             },
         )
         except Exception as e:
@@ -344,7 +348,8 @@ class SlackBot():
         # self.send_message(channel=channel, thread_ts=thread_ts, message=response_message)
         # log(f'Response sent to user {user}: {response_message}')
 
-    def _save_chat_history(self, channel, message, parent_message_text, thread_ts):
+    @staticmethod
+    def save_user_chat_history(channel, message, parent_message_text=None, thread_ts=None):
         """this is for context windowing, to keep track of the last few messages in a channel for the chatbot to use as context."""
         file_path = f'./tmp/{channel}.txt'
 
@@ -359,33 +364,41 @@ class SlackBot():
         if parent_message_text:
             existing_messages.append({'role': 'user', 'content': parent_message_text})
             log(f'Adding parent message from thread with timestamp: {thread_ts}')
+        else:
+            log(f'No parent message found in thread; saving user message: {message[:16]}... to file...')
 
         messages = [
             {'role': 'user', 'content': message},
-            {'role': 'system', 'content': 'You are a funny helpful assistant'}
+            {'role': 'system', 'content': 'You are a helpful corporate assistant'}
         ]
         messages.extend(existing_messages)
 
         with open(file_path, 'w') as file:
             for msg in messages:
                 file.write(json.dumps(msg) + '\n')
+                print('written to textfile')
+                print(json.dumps(msg) + '\n')
 
+        return messages
+
+    @staticmethod
+    def save_assistant_chat_history(channel, message, messages, thread_ts=None):
+        """saves the gpt response to the chat history"""
+        messages.append({'role': 'user', 'content': message, 'created_at': now, 'thread_ts': thread_ts})
+        messages.append({'role': 'assistant', 'content': message, 'created_at': now, 'thread_ts': thread_ts})
+
+        log(f'Saving assistant message: {message[:16]}... to file...')
         return messages
 
     def handle_chat_prompt(
         self, channel, user, message, parent_message_text, thread_ts=None, direct_message=False, in_thread=False):
         """basic chat completion goes here"""
-        # messages = self._save_chat_history(channel, message, parent_message_text, thread_ts)
-        messages = [
-            {'role': 'user', 'content': message},
-            {'role': 'system', 'content': 'You are a funny and helpful assistant'}
-        ]
+        messages = self.save_user_chat_history(channel, message, parent_message_text, thread_ts)
 
         oa = OpenAIAPI()
         now = datetime.now()
 
         try:
-            # response = oa.create_completion(messages=messages)
             response = oa.create_completion(messages=messages)
         except Exception as e:
             log(f'ChatGPT response error: {e}', error=True)
@@ -394,8 +407,7 @@ class SlackBot():
 
         gpt_resp = response.choices[0].message.content.strip('\n')
 
-        # messages.append({'role': 'user', 'content': message, 'created_at': now, 'thread_ts': thread_ts})
-        # messages.append({'role': 'assistant', 'content': gpt_resp, 'created_at': now, 'thread_ts': thread_ts})
+        messages = save_assistant_chat_history(channel, gpt_resp, messages, thread_ts)
 
         # todo: handle size so we can save some storage space and reset the contexts
         # self.handle_size(x, messages, thread_ts)
@@ -490,11 +502,11 @@ class SlackBot():
         logger.debug(f" process parsed and sanitize prompt: {prompt}")
 
         if len(prompt) < 3:
-            client.web_client.reactions_add(name="rage", channel=channel_id, timestamp=thread_ts)
+            self.client.reactions_add(name="rage", channel=channel_id, timestamp=thread_ts)
             blocks = list()
             blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"*Error prompt too short (min. 3 chars required)*"}})
             blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"*Prompt:* {prompt}"}})
-            client.web_client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, blocks=blocks)
+            self.client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, blocks=blocks)
             return
 
         msg = {"prompt": prompt, "channel" : channel_id, "ts" : thread_ts, "userid" : userid }
@@ -510,7 +522,7 @@ class SlackBot():
 
         channel_id = event["channel"]
 
-        client.web_client.reactions_add(name="eyes", channel=event["channel"], timestamp=event["ts"])
+        self.client.reactions_add(name="eyes", channel=event["channel"], timestamp=event["ts"])
 
         if not in_thread:
             parse_non_threadded_message(client, event, userid)
@@ -624,14 +636,14 @@ class SlackBot():
                 parse_mention(client, req.payload)
 
 
-    def process_slack_reply(client: SocketModeClient, message, raw_message):
+    def process_slack_reply(self, message, raw_message):
         if "prompt" not in message:
             return
 
         if "state" in message and message["state"] == "running":
             ts = message["ts"]
             channel = message["channel"]
-            client.web_client.reactions_add(
+            self.client.reactions_add(
                 name="lower_left_paintbrush",
                 channel=channel,
                 timestamp=ts,
@@ -652,7 +664,7 @@ class SlackBot():
         # if there is no image in message, paining failed
         if "image" not in message:
             try:
-                client.web_client.reactions_add(
+                self.client.reactions_add(
                     name="boom",
                     channel=channel,
                     timestamp=ts,
@@ -669,7 +681,7 @@ class SlackBot():
                 else:
                     blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"```Unknown error occured```"}})
 
-            client.web_client.chat_postMessage(
+            self.client.chat_postMessage(
                 channel=channel,
                 thread_ts=ts,
                 blocks=blocks,
@@ -678,7 +690,7 @@ class SlackBot():
 
         imagefile = message["image"]
 
-        conversation = client.web_client.conversations_open(users=userid)
+        conversation = self.client.conversations_open(users=userid)
         #{'ok': True, 'no_op': True, 'already_open': True, 'channel': {'id': 'D041BKAKSF9'}}
 
         dm_id = None
@@ -691,14 +703,14 @@ class SlackBot():
 
         if not in_thread:
             # most cases reply in channel
-            result = client.web_client.files_upload(
+            result = self.client.files_upload(
                 channels=publish_to,
                 file=imagefile,
                 title=f"{prompt} {args}",
             )
         else:
             # upscale replies go to the thread
-            result = client.web_client.files_upload(
+            result = self.client.files_upload(
                 channels=publish_to,
                 file=imagefile,
                 title=f"{prompt} {args} by <@{userid}>",
@@ -719,7 +731,7 @@ class SlackBot():
             if "thread_ts" in s:
                 ts = s["thread_ts"]
 
-            client.web_client.chat_postMessage(
+            self.client.chat_postMessage(
                 channel=chan,
                 thread_ts=ts,
                 text=f"{prompt} {args}",
@@ -727,7 +739,7 @@ class SlackBot():
 
             #blocks = list()
             #blocks.append({"type" : "section", "text" : { "type" : "mrkdwn", "text" : f"This work was comissioned by <@{userid}>"}})
-            #client.web_client.chat_postMessage(
+            #self.client.chat_postMessage(
             #    channel=chan,
             #    thread_ts=ts,
             #    blocks=blocks,
@@ -751,7 +763,7 @@ class SlackBot():
             buttons.append({"type" : "button", "text" : { "type" : "plain_text", "text" : "SD 2x" }, "action_id" : "embiggen", "value" : action_value_str})
             blocks.append({ "type" : "actions", "elements" : buttons })
 
-            client.web_client.chat_postMessage(
+            self.client.chat_postMessage(
                 channel=chan,
                 thread_ts=ts,
                 blocks=blocks,
@@ -760,7 +772,7 @@ class SlackBot():
             if len(full_output) > 0:
                 blocks = list()
                 blocks = split_blocks(full_output, "```", "```")
-                client.web_client.chat_postMessage(
+                self.client.chat_postMessage(
                     channel=chan,
                     thread_ts=ts,
                     blocks=blocks,
