@@ -16,7 +16,6 @@ model = 'gpt-3.5-turbo'
 def save_user_chat_history(message, parent_message_text=None, thread_ts=None):
     """this is for context windowing, to keep track of the last few messages in a channel for the chatbot to use as context."""
     file_path = f'./tmp/test-{datetime.now().strftime("%m-%d-%Y")}.txt'
-    now = datetime.now().isoformat()
 
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
@@ -43,7 +42,6 @@ def save_user_chat_history(message, parent_message_text=None, thread_ts=None):
 def save_assistant_chat_history(message, messages, thread_ts=None):
     """saves the gpt response to the chat history"""
     file_path = f'./tmp/test-{datetime.now().strftime("%m-%d-%Y")}.txt'
-    now = datetime.now().isoformat()
 
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
