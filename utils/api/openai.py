@@ -127,17 +127,18 @@ class OpenAIAPI():
 
         try:
             response = self.client.images.generate(
-            model=model,
-            prompt=prompt,
-            size=size,
-            quality=quality,
-            n=1
+                model=model,
+                prompt=prompt,
+                size=size,
+                quality=quality,
+                n=1
             )
             image_url = response.data[0].url
         except Exception as e:
             log(f'ChatGPT response error: {e}', error=True)
+            self.clean_error_message(str(e))
             if slack:
-                return slack.send_message(message=str(e))
+                return slack._send_message(message=str(e))
         return image_url
 
     def generate_image_variation(self, image, size="1024x1024", quality="standard", model="dall-e-2", slack=None):
@@ -154,11 +155,11 @@ class OpenAIAPI():
             image_url = response.data[0].url
         except Exception as e:
             log(f'ChatGPT response error: {e}', error=True)
+            se_msg = self.clean_error_message(str(e))
             if slack:
-                return slack.send_message(message=str(e))
+                return slack._send_message(message=str(se_msg))
 
         return image_url
-
 
     def generate_tts(self, prompt, user, thread_ts=None):
         """generates a TTS audio file from a prompt"""
@@ -175,6 +176,19 @@ class OpenAIAPI():
             response.stream_to_file(speech_file_path)
 
         return speech_file_path, file_name
+
+    def clean_error_message(error_message):
+        error_json_start_index = error_message.find('{')
+        error_json_end_index = error_message.rfind('}') + 1
+        error_json = error_message[error_json_start_index:error_json_end_index]
+
+        error_data = json.loads(error_json)
+
+        error_code = error_data['error']['code']
+        error_message = error_data['error']['message']
+
+        return f'Error code: {error_code}'\
+            f'Error message: {error_message}'
 
     @staticmethod
     def num_tokens_from_string(string: str, encoding_name: str) -> int:

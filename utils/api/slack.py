@@ -150,14 +150,17 @@ class SlackBot():
             pass
 
     def handle_msg(self, message, user, channel, thread_ts=None, direct_message=False, in_thread=False):
+        print("\nmessage",message,"\n")
         if channel not in self.last_request_datetime:
             self.last_request_datetime[channel] = datetime.fromtimestamp(0)
         # Let the user know that we are busy with the request if enough time has passed since last message
         if self.last_request_datetime[channel] + timedelta(seconds=int(self.settings['history_expires_seconds'])) < datetime.now():
-            self._send_message(
-                channel=channel,
-                thread_ts=thread_ts,
-                message=random.choice(self.busy_messages))
+            pass
+            # removing this because it got annoying
+            # self._send_message(
+            #     channel=channel,
+            #     thread_ts=thread_ts,
+            #     message=random.choice(self.busy_messages))
 
         self.last_request_datetime[channel] = datetime.now()
 
@@ -232,7 +235,7 @@ class SlackBot():
 
     def handle_reset_message(self, user, channel):
         file_path = f'./tmp/{channel}_{datetime.now().strftime("%m-%d-%Y")}.txt'
-        renamed_path = f'./tmp/{channel}_{datetime.now().strftime("%m-%d-%Y")}_{datetime.now().strftime("%S")}.txt'
+        renamed_path = f'./tmp/{channel}_{datetime.now().strftime("%m%d%Y_%H%M%S%f")}.txt'
 
         if os.path.exists(file_path):
             try:
@@ -266,8 +269,8 @@ class SlackBot():
         """image generation prompts goes here"""
         prompt = self._clean_image_prompt_message(message, model)
         self._send_message(
-            channel=channel,
-            message=random.choice(self.busy_messages) + f"\nGenerating image for your request '{prompt[:24]}'..., please wait for me! :blobcatroll:"
+            channel=self.dm_channel_ids.get(user, user),
+            message=random.choice(self.busy_messages) + f'\nCrafting masterpiece :art: \"{message[:25]}...\" please wait a sec!'
         )
 
         if parent_message_text:
@@ -277,7 +280,7 @@ class SlackBot():
         # validate prompt
         if len(prompt) == 0:
             return self._send_message(
-                channel=channel,
+                channel=self.dm_channel_ids.get(user, user),
                 message='Please check your input. To generate image use this format -> @tagme! image: robot walking a dog')
 
         oa = OpenAIAPI()
@@ -291,9 +294,16 @@ class SlackBot():
         try:
             image_content = urlopen(image_url).read()
 
-            short_prompt = prompt[50:]
+            short_prompt = prompt.strip(',".:\/')
+            short_prompt = short_prompt[:50]
             image_name = f"{short_prompt.replace(' ', '_')}.png"
             image_path = f'{self.image_base_url}{image_name}'
+
+            n = 1
+            while os.path.exists(image_path):
+                image_name = f"{short_prompt.replace(' ', '_')}_{n}.png"
+                image_path = f'./tmp/{image_name}'
+                n += 1
 
             image_file = open(image_path, 'wb')
             image_file.write(image_content)
@@ -324,15 +334,16 @@ class SlackBot():
 
     def handle_image_variation_generation_prompt(self, channel, user, message, attachments, thread_ts=None):
         """Handle user's slack message with the attached image"""
-        pass
+        print(message)
         # if not "attachments" in message:
-        #   msg = 'No attachments found in message'
-        #   self._send_message(channel=channel, thread_ts=thread_ts, message=msg + ' :sob: Please send an image together with the prompt.', reply_broadcast=thread_ts)
-        #   return log(msg)
+        #     msg = 'No attachments found in message'
+        #     self._send_message(channel=self.dm_channel_ids.get(user,user), thread_ts=thread_ts, message=msg + ' :sob: Please send an image together with the prompt.', reply_broadcast=thread_ts)
+        #     return log(msg)
 
         # attachments = message["attachments"]
         # for attachment in attachments:
         #   if attachment["type"] == "image":
+        #     self._send_message(channel=self.dm_channel_ids.get(user,user), thread_ts=thread_ts, message=msg + ' :sob: Please send an image together with the prompt.', reply_broadcast=thread_ts)
         #     log('Received an image, attempting to generate 2 variations')
         #     image_url = attachment["image_url"]
         #     response = self.client.files_download(url=image_url)
