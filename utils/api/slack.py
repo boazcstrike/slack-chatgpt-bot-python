@@ -141,11 +141,19 @@ class SlackBot():
         def handle_reaction_added_events(body, logger):
             print('someone reacted')
 
+        @self.app.event("reaction_removed")
+        def handle_reaction_added_events(body, logger):
+            print('someone removed a reaction')
+
         @self.app.event("message")
         def handle_message_events(body, logger):
             pass
 
         @self.app.event("file_shared")
+        def handle_file_shared_events(body, logger):
+            pass
+
+        @self.app.event("file_created")
         def handle_file_shared_events(body, logger):
             pass
 
