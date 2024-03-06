@@ -31,6 +31,11 @@ class SlackBot():
         self.token = os.getenv('SLACK_BOT_USER_OAUTH_TOKEN')
         self.signing_secret = os.getenv('SLACK_BOT_SIGNING_SECRET')
         self.app_token = os.getenv('SLACK_BOT_APP_LEVEL_TOKEN')
+
+        log(f'using {self.token[:25]} as token')
+        log(f'using {self.signing_secret[:25]} as signing_secret')
+        log(f'using {self.app_token[:25]} as app_token')
+
         self.client = WebClient(self.token)
         self.bot_id = self.client.auth_test().data['user_id']
         self.bot_name = self.client.auth_test().data['user']
