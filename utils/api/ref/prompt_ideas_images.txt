@@ -49,6 +49,7 @@ psychedelic, saturated, ecstatic,
 brash, exciting, passionate, hot
 
 -:
+image compression, distorted, JPEG artifacts, noisy, shaky, pixelated, unclear, artifacts, low detail, low quality, low resolution, distortion, amateur, low res, low-res, cropped body, cut off, basic, boring, botched, unprofessional, draft, failure, fake, image corruption, irregular, uneven, unnatural, contorted, twisted, unappealing, blurry, haze, worst quality, normal quality, bad shadow, poor quality, amateur photography, tasteless, tacky, lacklustre, simple, plain, grainy, out of focus, fuzzy, cropped, uncentered, out of frame, body out of frame, split image, truncated, disjointed, incoherent, disorganized, jumbled, floating, objects, unreal, deformations, kitsch, unattractive, opaque, boring pose, plain background, boring, plain, standard, average, uninventive, derivative, homogenous, uncreative, ineffective, drab, amateur,
 disfigured
 ugly
 bad
