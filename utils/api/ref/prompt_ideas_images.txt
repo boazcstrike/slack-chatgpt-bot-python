@@ -49,7 +49,237 @@ psychedelic, saturated, ecstatic,
 brash, exciting, passionate, hot
 
 -:
-disfigured, ugly, bad, immature, cartoon, anime, 3d, painting, b&w
+disfigured
+ugly
+bad
+painting
+cartoon, anime, 3d
+immature, b&w,
+too many fingers
+bad anatomy
+bad proportions
+blurry
+cloned face
+cropped
+deformed
+dehydrated
+disfigured
+duplicate
+error
+extra arms
+extra fingers
+extra legs
+extra limbs
+fused fingers
+gross proportions
+jpeg artifacts
+long neck
+low quality
+lowres
+malformed limbs
+missing arms
+missing legs
+morbid
+mutated hands
+mutation
+mutilated
+out of frame
+poorly drawn face
+poorly drawn hands
+signature
+text
+too many fingers
+ugly
+username
+watermark
+worst quality
+Amputee
+Autograph
+Bad anatomy
+Bad illustration
+Bad proportions
+Beyond the borders
+Blank background
+Blurry
+Body out of frame
+Boring background
+Branding
+Cropped
+Cut off
+Deformed
+Disfigured
+Dismembered
+Disproportioned
+Distorted
+Draft
+Duplicate
+Duplicated features
+Extra arms
+Extra fingers
+Extra hands
+Extra legs
+Extra limbs
+Fault
+Flaw
+Fused fingers
+Grains
+Grainy
+Gross proportions
+Hazy
+Identifying mark
+Improper scale
+Incorrect physiology
+Incorrect ratio
+Indistinct
+Kitsch
+Logo
+Long neck
+Low quality
+Low resolution
+Macabre
+Malformed
+Mark
+Misshapen
+Missing arms
+Missing fingers
+Missing hands
+Missing legs
+Mistake
+Morbid
+Mutated hands
+Mutation
+Mutilated
+Off-screen
+Out of frame
+Outside the picture
+Pixelated
+Poorly drawn face
+Poorly drawn feet
+Poorly drawn hands
+Printed words
+Render
+Repellent
+Replicate
+Reproduce
+Revolting dimensions
+Script
+Shortened
+Sign
+Signature
+Split image
+Squint
+Storyboard
+Text
+Tiling
+Trimmed
+Ugly
+Unfocused
+Unattractive
+Unnatural pose
+Unreal engine
+Unsightly
+Watermark
+Written language
+Blurry
+Boring
+Close-up
+Dark (optional)
+Details are low
+Distorted details
+Eerie
+Foggy (optional)
+Gloomy (optional)
+Grains
+Grainy
+Grayscale (optional)
+Homogenous
+Low contrast
+Low quality
+Lowres
+Macro
+Monochrome (optional)
+Multiple angles
+Multiple views
+Opaque
+Overexposed
+Oversaturated
+Plain
+Plain background
+Portrait
+Simple background
+Standard
+Surreal
+Unattractive
+Uncreative
+Underexposed
+Animals (optional)
+Asymmetrical buildings
+Blurry
+Cars (optional)
+Close-up
+Creepy
+Deformed structures
+Grainy
+Jpeg artifacts
+Low contrast
+Low quality
+Lowres
+Macro
+Multiple angles
+Multiple views
+Overexposed
+Oversaturated
+People (optional)
+Pets (optional)
+Plain background
+Scary
+Solid background
+Surreal
+Underexposed
+Unreal architecture
+Unreal sky
+Weird colors
+3D
+Absent limbs
+Additional appendages
+Additional digits
+Additional limbs
+Altered appendages
+Amputee
+Asymmetric
+Asymmetric ears
+Bad anatomy
+Bad ears
+Bad eyes
+Bad face
+Bad proportions
+Beard (optional)
+Broken finger
+Broken hand
+Broken leg
+Broken wrist
+Cartoon
+Childish (optional)
+Cloned face
+Cloned head
+Collapsed eyeshadow
+Combined appendages
+Conjoined
+Copied visage
+Corpse
+Cripple
+Cropped head
+Cross-eyed
+Depressed
+Desiccated
+Disconnected limb
+Disfigured
+Dismembered
+Disproportionate
+Double face
+Duplicated features
+Eerie
+Elongated throat
 
 muted, bleak, funereal, somber,
 melancholic, mournful, gloomy,
@@ -369,48 +599,3 @@ parks, educational spaces, venues
 
 
 "let's think things through step by step"
-
-Telephoto lens
-Often used to capture a subject from a long distance away, for instance during surveillance, paparazzi-like contexts or nature photography. Creates a vaguely voyeuristic feel, even when the subject is framed in close-up.
-
-Pinhole photography, camera obscura
-An extremely primitive photography format for low-focus, historic-looking images.
-
-Polaroid
-Classic instant photography format, often with bright flash, shadows, soft focus and film grain. Even better – it’s naturally square!
-
-Macro photography
-Photography using a lens designed for extreme close-ups – it’s typically associated with very small subject matter, with only a narrow part of the image in focus.
-
-Long exposure, slow shutter speed
-This prompt causes moving elements to be blurred, creates a dreamy and impressionistic feeling. It’s a good to make a photo feel ‘realistic’ while also keeping avoiding recognisable detail, like faces (DALL-E often struggles getting the details right when it needs to draw a lot of figures accurately.)
-
-Lomography
-A colourful, vibrant photography approach using experimental films and analogue cameras; expect light leaks, film grain and hot, ‘filter-y’ scenes.
-
-Flash, harsh flash
-Makes photos look edgy and authentic, especially in non-studio settings. Noticeable flash use is not usually associated with high-quality imagery, so photos look more like a ‘real person’ took them. In photo portraits or studio settings, creates a dramatic, ‘in-the-spotlight’ feel.
-
-Fish-eye lens
-Dramatic, ultra-wide-angle photography, often used for dramatic portraits that ‘zoom in’ on the subject, or to fit in a huge field of view (e.g: to show the maximum amount of an interior, or a landscape).
-
-Fashion photography
-Prompt for ‘editorial fashion photography’ as well as specific outfits and settings; try ‘masked’ or ‘viewed from behind’ to avoid faces, name specific fashion photographers, or source prompts like ‘from Vogue magazine’ or ‘from ad campaign.’
-
-Drone photography
-Views from above. Related: aerial view, view from above, birds-eye-view.
-
-Double exposure
-Combine two images for an artistic effect! Very James Bond. Try merging a colourful or vibrant background or texture with readily-recognisable silhouettes.
-
-Disposable camera
-Creates lower-quality, oddly-composed photos: often provides film grain, vignette effects, camera flash and amateur framing. Fun!
-
-Daguerrotype
-The first publicly available photographic process, widely used during the 1840s and 1850s.
-
-Autochrome
-Early colour photography process used between 1900 and 1930: greens and pinks tend to pop, while oranges and blues are often faded.
-
-Surveillance & CCTV
-Not DALL-E’s favourite genre, but try terms like CCTV, security, footage, recording, dashcam, surveillance, grainy, black-and-white to create ‘evidential’ images. It was the grizzly what dun it, guv’nor! (For narrative purposes only, of course!)
